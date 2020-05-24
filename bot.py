@@ -1,7 +1,9 @@
 import discord
 import youtube_dl
 from discord.ext import commands
+from discord.utils import get
 import json
+import os
 
 with open('setting.json','r',encoding='utf8') as jfile:
     jdata = json.loads(jfile.read())
@@ -49,15 +51,44 @@ async def leave(ctx):
     server = ctx.message.guild
     voice_client = ctx.guild.voice_client
     await voice_client.disconnect()
-    
-@bot.command(pass_context=True)
-async def play(ctx,url):
-    voice = ctx.message.author.voice
-    voice_client = ctx.guild.voice_client
-    player = await voice_client.create_ytdl_player(url)
-    players[guild.id] = player
-    player.start()
-    
+
+async def joinMusicChannel(ctx):
+    try:
+        channel = ctx.author.voice.channel
+    except:
+        await ctx.send(ctx.author.mention + " Please join the music voice channel.")
+        return False
+
+    vc = ctx.voice_client
+    if vc == None:
+        await channel.connect()
+    return True
+
+ydl_opts = {
+    'format': 'bestaudio/best',
+    'postprocessors': [{
+        'key': 'FFmpegExtractAudio',
+        'preferredcodec': 'mp3',
+        'preferredquality': '192',
+    }],
+}
+
+def endSong(guild, path):
+    os.remove(path)
+
+
+@bot.command()
+async def play(ctx, url):
+    data = await joinMusicChannel(ctx)
+    if data == True:
+        with youtube_dl.YoutubeDL(ydl_opts) as ydl:
+            file = ydl.extract_info(url, download=True)
+        guild = ctx.message.guild
+        voice_client = guild.voice_client
+        path = str(file['title']) + "-" + str(file['id'] + ".mp3")
+
+        voice_client.play(discord.FFmpegPCMAudio(path), after=lambda x: endSong(guild, path))
+        voice_client.source = discord.PCMVolumeTransformer(voice_client.source, 1)
 bot.run(jdata['TOKEN'])
 
 
